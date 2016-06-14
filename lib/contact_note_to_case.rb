@@ -10,34 +10,50 @@ class ContactNoteToCase
     @case      = @sf.cases.first
     @chatters  = @sf.chatters
     @contact   = @potential.contacts.first
-    @notes     = @contact.nil? ? @potential.notes : @contact.notes
-    puts "processing: #{uniq_notes.count} notes"
-    count = uniq_notes.count
     puts @sf.id
-    uniq_notes.each_with_index do |note, i|
-      puts "#{i + 1} of #{count}"
-      Utils::SalesForce::FeedItem.create_from_zoho_note(note, @sf)
-      note.mark_migration_complete(:note)
-    end
     if @case && @sf.cases.count == 1
-      uniq_notes(@case.chatters).each_with_index do |note, i|
-        puts "#{i + 1} of #{count} for case"
+      puts 'stick contact notes onto case'
+      uniq_notes(@case).each_with_index do |note, i|
+        puts "#{i + 1} contact notes on case"
         Utils::SalesForce::FeedItem.create_from_zoho_note(note, @case)
         note.mark_migration_complete(:note)
       end
     end
-    @case.try(:mark_migration_complete,:notes)
+
+    if @case.nil? && @contact && @contact.notes.present?
+      puts 'stick contacts notes directly on opportuntiy'
+      uniq_notes(@case).each_with_index do |note, i|
+        puts "#{i + 1} putting contact notes onto opportunity"
+        Utils::SalesForce::FeedItem.create_from_zoho_note(note, @sf)
+      end
+    end
+
+    uniq_notes(@sf).each_with_index do |note, i|
+      #stick potential notes onto opportunity
+      puts "#{i + 1} potential to opportunity"
+      Utils::SalesForce::FeedItem.create_from_zoho_note(note, @sf)
+      note.mark_migration_complete(:note)
+    end
+    @case.mark_migration_complete(:notes) if @case
     @sf.mark_migration_complete(:notes)
   end
 
-  def uniq_notes(chatters = @chatters)
-    @uniq_notes ||= @notes.delete_if do |n|
-      n.note_migration_complete? || n.note_content.empty? ||
-        chatters.detect do |c|
-          note1 = n.note_content.squish
-          note2 = Nokogiri::HTML(c.body).text.gsub('::FROM ZOHO::', '').gsub(/AUTHORED BY \(.+\)/, '').squish
-          note1 == note2
-        end
+  def uniq_notes(sf_object)
+    return [] unless sf_object
+    case sf_object.type
+    when "Opportunity"
+      notes = @potential.notes
+    when "Case"
+      notes = @contact.notes
+    end
+    notes.delete_if do |n|
+      # n.note_migration_complete? ||
+      n.note_content.empty? ||
+      sf_object.chatters.detect do |c|
+        note1 = n.note_content.squish
+        note2 = Nokogiri::HTML(c.body).text.gsub('::FROM ZOHO::', '').gsub(/AUTHORED BY \(.+\)/, '').squish
+        note1 == note2
+      end
     end
   end
 end
