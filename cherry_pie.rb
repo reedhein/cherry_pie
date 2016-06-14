@@ -32,9 +32,14 @@ class CherryPie
         @do_work = false
         @processed = 0
         get_sales_force_work_queue do |sf|
-          if sf.notes_migration_complete?
+
+          if false #sf.notes_migration_complete?
             puts sf.id
             puts "already processed"
+          elsif @processed < 300
+            binding.pry
+            # sf.chatters.delete
+            # sf.cases.first.chatters.delete
           else
             process_tools.each do |tool|
               tool.new(sf, @meta).perform
