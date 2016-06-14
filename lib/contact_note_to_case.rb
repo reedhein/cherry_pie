@@ -10,7 +10,7 @@ class ContactNoteToCase
     @case      = @sf.cases.first
     @chatters  = @sf.chatters
     @contact   = @potential.contacts.first
-    @notes     = @contact.notes
+    @notes     = @contact.nil? ? @potential.notes : @contact.notes
     puts "processing: #{uniq_notes.count} notes"
     count = uniq_notes.count
     puts @sf.id
@@ -32,9 +32,11 @@ class ContactNoteToCase
 
   def uniq_notes(chatters = @chatters)
     @uniq_notes ||= @notes.delete_if do |n|
-      # n.note_migration_complete? ||
+      n.note_migration_complete? || n.note_content.empty? ||
         chatters.detect do |c|
-          n.note_content.squish == Nokogiri::HTML(c.body).text.gsub('::FROM ZOHO::', '').gsub(/AUTHORED BY \(.+\)/, '').squish
+          note1 = n.note_content.squish
+          note2 = Nokogiri::HTML(c.body).text.gsub('::FROM ZOHO::', '').gsub(/AUTHORED BY \(.+\)/, '').squish
+          note1 == note2
         end
     end
   end
