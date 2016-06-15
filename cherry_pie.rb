@@ -16,7 +16,7 @@ class CherryPie
   attr_reader :sf_client
   def initialize(limit: 2000, project: :migration, id: nil)
     @id           = id
-    @limit        = limit
+    # @limit        = limit
     @offset_date  = nil
     @sf_client    = Utils::SalesForce::Client.instance
     @do_work      = true
@@ -76,7 +76,7 @@ class CherryPie
     if @id
       query = "SELECT #{@fields} FROM Opportunity WHERE id = '#{@id}'"
     elsif @offset_date && !@offset_date.empty?
-      query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c LIKE 'zcrm%' AND CreatedDate >= #{@offset_date} ORDER BY CreatedDate"
+      query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c LIKE 'zcrm%' AND CreatedDate >= #{@offset_date}"
     else
       query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c LIKE 'zcrm%'  ORDER BY CreatedDate ASC"
     end
@@ -99,5 +99,5 @@ class CherryPie
   end
 end
 
-CherryPie.new(limit: 2000).process_work_queue()
+CherryPie.new().process_work_queue()
 puts 'fun times!'
