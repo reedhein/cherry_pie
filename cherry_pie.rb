@@ -1,4 +1,5 @@
 require 'pry'
+require 'active_support/time'
 require_relative './lib/contact_note_to_case'
 require_relative './lib/attachment_migration_tool'
 require_relative './lib/bring_forward_zoho'
@@ -7,6 +8,7 @@ require_relative '../global_utilities/global_utilities'
 # RubyZoho::Crm::Contact.send :inspector, :id
 # RubyZoho::Crm::Potential.include Inspector
 # RubyZoho::Crm::Potential.send :inspector, :id, :account_name, :description
+ActiveSupport::TimeZone[-8]
 RubyZoho::Crm::Lead.include Inspector
 RubyZoho::Crm::Lead.send :inspector, :id
 RubyZoho::Crm::Account.include Inspector
@@ -99,5 +101,23 @@ class CherryPie
   end
 end
 
+
+@today = Date.today.day
+# hold_process while work_hours?
+def past_midnight?
+  Time.now.hour >= 0 && Date.today.day > @today
+end
+
+def work_hours?
+    puts "work hours = #{17 < Time.now.hour && Time.now.hour > 9}"
+    17 < Time.now.hour && Time.now.hour > 9
+end
+
+def hold_process
+  puts 'waiting until after midnight'
+  sleep 60
+end
+
+hold_process until past_midnight?
 CherryPie.new().process_work_queue()
 puts 'fun times!'
