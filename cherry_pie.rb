@@ -103,9 +103,10 @@ end
 
 
 @today = Date.today.day
+@tomorrow = Date.tomorrow.beginning_of_day
 # hold_process while work_hours?
 def past_midnight?
-  Time.now.hour >= 0 && Date.today.day > @today
+  Time.now.to_i > @tomorrow.to_i
 end
 
 def work_hours?
@@ -114,10 +115,11 @@ def work_hours?
 end
 
 def hold_process
-  puts 'waiting until after midnight'
+  seconds_left = @tomorrow.to_i - Time.now.to_i
+  puts "#{seconds_left} seconds until zoho api limits reset"
   sleep 60
 end
 
-hold_process until past_midnight?
+# hold_process until past_midnight?
 CherryPie.new().process_work_queue()
 puts 'fun times!'
