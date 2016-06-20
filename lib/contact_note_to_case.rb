@@ -7,6 +7,7 @@ class ContactNoteToCase
 
   def perform
     @potential = @sf.find_zoho
+    return if @potential.is_a? Utils::SalesForce::Determine
     @case      = @sf.cases.first
     @chatters  = @sf.chatters
     @contact   = @potential.contacts.first
@@ -42,9 +43,9 @@ class ContactNoteToCase
     return [] unless sf_object
     case sf_object.type
     when "Opportunity"
-      notes = @potential.notes
+      notes = @potential.try(:notes) || []
     when "Case"
-      notes = @contact.notes
+      notes = @contact.try(:notes) || []
     end
     notes.delete_if do |n|
       # n.note_migration_complete? ||
