@@ -16,11 +16,14 @@ RubyZoho::Crm::Account.send :inspector, :id
 DB::SalesForceProgressRecord.include Inspector
 class CherryPie
   attr_reader :sf_client
-  def initialize(limit: 2000, project: :migration, id: nil)
+  def initialize(limit: 2000, project: :migration, id: nil, environment: 'sandbox')
     @id           = id
+    @environment  = environment
+    Utils::Box.environment = environment
     # @limit        = limit
     @offset_date  = nil
     @sf_client    = Utils::SalesForce::Client.instance
+    @sf_client    = Utils::Box::Client.instance
     @do_work      = true
     @fields       = get_opportunity_fields
     @meta         = DB::Meta.first_or_create(project: project)
@@ -34,16 +37,16 @@ class CherryPie
         @do_work = false
         @processed = 0
         get_sales_force_work_queue do |sf|
-          if sf.notes_migration_complete?
-            puts sf.id
-            puts "already processed"
-          else
+          # if sf.notes_migration_complete?
+          #   puts sf.id
+          #   puts "already processed"
+          # else
             process_tools.each do |tool|
               tool.new(sf, @meta).perform
             end
             # sf.mark_all_completed
             @meta.updated_count += 1
-          end
+          # end
           @processed += 1
           puts "Processed: #{@processed}"
           @total     += 1
@@ -119,7 +122,8 @@ def hold_process
   puts "#{seconds_left} seconds until zoho api limits reset"
   sleep 60
 end
+binding.pry
+#hold_process until past_midnight?
 
-# hold_process until past_midnight?
 CherryPie.new().process_work_queue()
 puts 'fun times!'
