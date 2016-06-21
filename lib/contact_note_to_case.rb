@@ -47,7 +47,7 @@ class ContactNoteToCase
       notes = @contact.notes
     end
     notes.delete_if do |n|
-      # n.note_migration_complete? ||
+      n.note_migration_complete? ||
       n.note_content.empty? ||
       sf_object.chatters.detect do |c|
         note1 = n.note_content.squish
