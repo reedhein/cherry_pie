@@ -22,7 +22,7 @@ class ContactNoteToCase
     end
 
     if @case.nil? && @contact && @contact.notes.present?
-      puts 'stick contacts notes directly on opportuntiy'
+      puts 'stick contacts notes directly on opportuntiy' if uniq_notes(@case).present?
       uniq_notes(@case).each_with_index do |note, i|
         puts "#{i + 1} putting contact notes onto opportunity"
         Utils::SalesForce::FeedItem.create_from_zoho_note(note, @sf)
