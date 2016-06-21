@@ -81,7 +81,7 @@ class CherryPie
     if @id
       query = "SELECT #{@fields} FROM Opportunity WHERE id = '#{@id}'"
     elsif @offset_date && !@offset_date.empty?
-      query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c LIKE 'zcrm%' AND CreatedDate >= #{@offset_date} ORDER BY CreatedDate DESC"
+      query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c LIKE 'zcrm%' AND CreatedDate <= #{@offset_date} ORDER BY CreatedDate DESC"
     else
       query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c LIKE 'zcrm%'  ORDER BY CreatedDate DESC"
     end
