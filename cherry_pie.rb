@@ -37,7 +37,6 @@ class CherryPie
         @do_work = false
         @processed = 0
         get_sales_force_work_queue do |sf|
-          sf.mark_unfinished
           if sf.notes_migration_complete?
             puts sf.id
             puts "already processed"
