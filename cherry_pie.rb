@@ -37,16 +37,17 @@ class CherryPie
         @do_work = false
         @processed = 0
         get_sales_force_work_queue do |sf|
-          # if sf.notes_migration_complete?
-          #   puts sf.id
-          #   puts "already processed"
-          # else
+          sf.mark_unfinished
+          if sf.notes_migration_complete?
+            puts sf.id
+            puts "already processed"
+          else
             process_tools.each do |tool|
               tool.new(sf, @meta).perform
             end
             # sf.mark_all_completed
             @meta.updated_count += 1
-          # end
+          end
           @processed += 1
           puts "Processed: #{@processed}"
           @total     += 1
