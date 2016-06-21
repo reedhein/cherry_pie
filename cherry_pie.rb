@@ -23,7 +23,7 @@ class CherryPie
     # @limit        = limit
     @offset_date  = nil
     @sf_client    = Utils::SalesForce::Client.instance
-    @sf_client    = Utils::Box::Client.instance
+    @box_client    = Utils::Box::Client.instance
     @do_work      = true
     @fields       = get_opportunity_fields
     @meta         = DB::Meta.first_or_create(project: project)
