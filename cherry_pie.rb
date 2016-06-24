@@ -63,6 +63,31 @@ class CherryPie
     end
   end
 
+  def exit_complete
+    begin
+      @total = 0
+      while @do_work == true do
+        @do_work = false
+        @processed = 0
+        get_unfinished_objects "select body, parentid from feeditem where parentid in (select id from case)" do |sf|
+          binding.pry
+          @processed += 1
+          puts "Processed: #{@processed}"
+          @total     += 1
+          puts "Total: #{@total}"
+          @do_work    = true
+        end
+      end
+    rescue Net::OpenTimeout, SocketError, Errno::ETIMEDOUT, Faraday::ConnectionFailed
+      sleep 5
+      retry
+    rescue => e
+      puts e
+      binding.pry
+    end
+
+  end
+
   private
 
   def get_sales_force_work_queue(&block)
@@ -77,7 +102,7 @@ class CherryPie
     end
   end
 
-  def get_unfinished_objects(&block)
+  def get_unfinished_objects(override_query, &block)
     if @id
       query = "SELECT #{@fields} FROM Opportunity WHERE id = '#{@id}'"
     elsif @offset_date && !@offset_date.empty?
@@ -88,6 +113,7 @@ class CherryPie
     query << " WHERE NOT in #{@finished_ids}" if @finished_ids
     query << " LIMIT #{@limit}"               if @limit
     query << " OFFSET #{@offset}"             if @offset
+    query = override_query if override_query
     @sf_client.custom_query(query: query) do |sushi|
       yield sushi if block_given?
     end
@@ -125,5 +151,6 @@ end
 binding.pry
 #hold_process until past_midnight?
 
-CherryPie.new().process_work_queue()
+# CherryPie.new().process_work_queue()
+CherryPie.new().exit_complete()
 puts 'fun times!'
