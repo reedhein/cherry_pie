@@ -7,7 +7,7 @@ class AttachmentMigrationTool
   end
 
   def perform
-    return if @zoho.is_a?( GlobalUtilities::SalesForce::Determine || VirtualPoxy )
+    return if @zoho.is_a?(Utils::SalesForce::Determine) || @zoho.is_a?(VirtualPoxy)
     attachments = @zoho.attachments
     attachments.map do |attachment|
       @sf.attach(@zoho, attachment)

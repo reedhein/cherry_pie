@@ -19,6 +19,7 @@ class CherryPie
   def initialize(limit: 2000, project: :migration, id: nil, environment: 'sandbox')
     @id           = id
     @environment  = environment
+    $environment  = environment
     Utils::Box.environment = environment
     # @limit        = limit
     @offset_date  = nil
