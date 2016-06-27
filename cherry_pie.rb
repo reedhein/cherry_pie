@@ -3,7 +3,7 @@ require 'active_support/time'
 require_relative './lib/contact_note_to_case'
 require_relative './lib/attachment_migration_tool'
 require_relative './lib/bring_forward_zoho'
-require_relative '../global_utilities/global_utilities'
+require_relative '../global_utils/global_utilities'
 # RubyZoho::Crm::Contact.include Inspector
 # RubyZoho::Crm::Contact.send :inspector, :id
 # RubyZoho::Crm::Potential.include Inspector
@@ -16,7 +16,7 @@ RubyZoho::Crm::Account.send :inspector, :id
 DB::SalesForceProgressRecord.include Inspector
 class CherryPie
   attr_reader :sf_client
-  def initialize(limit: 2000, project: :migration, id: nil, environment: 'sandbox')
+  def initialize(limit: 2000, project: :migration, id: nil, environment: 'production')
     @id           = id
     @environment  = environment
     $environment  = environment
@@ -58,8 +58,11 @@ class CherryPie
     rescue Net::OpenTimeout, SocketError, Errno::ETIMEDOUT, Faraday::ConnectionFailed
       sleep 5
       retry
+    rescue RuntimeError => e
+      if e =~ /4820/
+        binding.pry
+      end
     rescue => e
-      puts e
       binding.pry
     end
   end
@@ -70,13 +73,23 @@ class CherryPie
       while @do_work == true do
         @do_work = false
         @processed = 0
-        get_unfinished_objects "select body, parentid from feeditem where parentid in (select id from case)" do |sf|
-          binding.pry
-          @processed += 1
-          puts "Processed: #{@processed}"
-          @total     += 1
-          puts "Total: #{@total}"
-          @do_work    = true
+        CSV.open('funtimes', 'w', headers: true , encoding: 'ISO-8859-1') do |csv|
+          headers = ['FeedItemBody', 'FeedItemCreatedDate', 'CaseId(18)', 'CaseStatus', 'CaseIsClosed', 'CaseExitCompletedDate']
+          csv << headers
+          map = []
+          get_unfinished_exit_objects do |sf|
+            @offset_date = sf.created_date
+            if sf.body =~ /Exit Complete/i || sf.title =~ /Exit Complete/i }
+              populate_csv(sf, csv)
+            end
+            binding.pry if map.include? sf.id
+            map << sf.id
+            @processed += 1
+            puts "Processed: #{@processed}"
+            @total     += 1
+            puts "Total: #{@total}"
+            @do_work    = true
+          end
         end
       end
     rescue Net::OpenTimeout, SocketError, Errno::ETIMEDOUT, Faraday::ConnectionFailed
@@ -86,14 +99,28 @@ class CherryPie
       puts e
       binding.pry
     end
-
   end
+
 
   private
 
+  def populate_csv(sf, csv)
+    value_array = []
+    value_array << Nokogiri::HTML(sf.body).text.squish
+    value_array << sf.created_date
+    value_array << sf.case.case_id_18__c
+    value_array << sf.case.status
+    value_array << sf.case.is_closed
+    value_array << sf.case.exit_completed_date__c
+    puts '*' * 88
+    puts value_array
+    puts '*' * 88
+    csv << value_array
+  end
+
   def get_sales_force_work_queue(&block)
     time = DB::SalesForceProgressRecord.first(notes_migration_complete: false).try(:created_date).try(:to_s)
-    @offset_date = Utils::SalesForce.format_time_to_soql(time) if time
+    @offset_date ||= Utils::SalesForce.format_time_to_soql(time) if time
     get_unfinished_objects do |record|
       if block_given?
         yield record
@@ -115,6 +142,17 @@ class CherryPie
     query << " LIMIT #{@limit}"               if @limit
     query << " OFFSET #{@offset}"             if @offset
     query = override_query if override_query
+    @sf_client.custom_query(query: query) do |sushi|
+      yield sushi if block_given?
+    end
+  end
+
+  def get_unfinished_exit_objects(&block)
+    if @offset_date
+      query= "select id, title, createddate, body, parentid from feeditem where type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost') and parentid in (select id from case) AND CreatedDate <= #{@offset_date} LIMIT 2000")
+    else
+      query= "select id, title, createddate, body, parentid from feeditem where type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost') and parentid in (select id from case) AND CreatedDate <= #{@offset_date} LIMIT 2000") do |sf|
+    end
     @sf_client.custom_query(query: query) do |sushi|
       yield sushi if block_given?
     end
@@ -155,3 +193,4 @@ binding.pry
 # CherryPie.new().process_work_queue()
 CherryPie.new().exit_complete()
 puts 'fun times!'
+
