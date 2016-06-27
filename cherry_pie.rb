@@ -73,12 +73,12 @@ class CherryPie
       while @do_work == true do
         @do_work = false
         @processed = 0
-        CSV.open('funtimes', 'w', headers: true , encoding: 'ISO-8859-1') do |csv|
+        CSV.open('funtimes', 'a+', headers: true , encoding: 'ISO-8859-1') do |csv|
           headers = ['FeedItemBody', 'FeedItemCreatedDate', 'CaseId(18)', 'CaseStatus', 'CaseIsClosed', 'CaseExitCompletedDate']
-          csv << headers
+          csv << headers unless csv.header_row?
           map = []
           get_unfinished_exit_objects do |sf|
-            @offset_date = sf.created_date
+            @offset_date = sf.created_date # creates a marker for next query
             if sf.body =~ /Exit Complete/i || sf.title =~ /Exit Complete/i
               populate_csv(sf, csv)
             end
@@ -106,7 +106,7 @@ class CherryPie
 
   def populate_csv(sf, csv)
     value_array = []
-    value_array << Nokogiri::HTML(sf.body).text.squish
+    value_array << Nokogiri::HTML(sf.body).text.squish.encode('ISO-8859-1', invalid: :replace, undef: :replace, replace: '?')
     value_array << sf.created_date
     value_array << sf.case.case_id_18__c
     value_array << sf.case.status
@@ -151,7 +151,7 @@ class CherryPie
     if @offset_date
       query= "select id, title, createddate, body, parentid from feeditem where type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost') and parentid in (select id from case) AND CreatedDate <= #{@offset_date} LIMIT 2000"
     else
-      query= "select id, title, createddate, body, parentid from feeditem where type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost') and parentid in (select id from case) AND CreatedDate <= #{@offset_date} LIMIT 2000"
+      query= "select id, title, createddate, body, parentid from feeditem where type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost') and parentid in (select id from case) LIMIT 2000"
     end
     @sf_client.custom_query(query: query) do |sushi|
       yield sushi if block_given?
