@@ -79,7 +79,7 @@ class CherryPie
           map = []
           get_unfinished_exit_objects do |sf|
             @offset_date = sf.created_date
-            if sf.body =~ /Exit Complete/i || sf.title =~ /Exit Complete/i }
+            if sf.body =~ /Exit Complete/i || sf.title =~ /Exit Complete/i
               populate_csv(sf, csv)
             end
             binding.pry if map.include? sf.id
@@ -149,9 +149,9 @@ class CherryPie
 
   def get_unfinished_exit_objects(&block)
     if @offset_date
-      query= "select id, title, createddate, body, parentid from feeditem where type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost') and parentid in (select id from case) AND CreatedDate <= #{@offset_date} LIMIT 2000")
+      query= "select id, title, createddate, body, parentid from feeditem where type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost') and parentid in (select id from case) AND CreatedDate <= #{@offset_date} LIMIT 2000"
     else
-      query= "select id, title, createddate, body, parentid from feeditem where type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost') and parentid in (select id from case) AND CreatedDate <= #{@offset_date} LIMIT 2000")
+      query= "select id, title, createddate, body, parentid from feeditem where type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost') and parentid in (select id from case) AND CreatedDate <= #{@offset_date} LIMIT 2000"
     end
     @sf_client.custom_query(query: query) do |sushi|
       yield sushi if block_given?
