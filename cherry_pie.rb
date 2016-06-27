@@ -151,7 +151,7 @@ class CherryPie
     if @offset_date
       query= "select id, title, createddate, body, parentid from feeditem where type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost') and parentid in (select id from case) AND CreatedDate <= #{@offset_date} LIMIT 2000")
     else
-      query= "select id, title, createddate, body, parentid from feeditem where type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost') and parentid in (select id from case) AND CreatedDate <= #{@offset_date} LIMIT 2000") do |sf|
+      query= "select id, title, createddate, body, parentid from feeditem where type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost') and parentid in (select id from case) AND CreatedDate <= #{@offset_date} LIMIT 2000")
     end
     @sf_client.custom_query(query: query) do |sushi|
       yield sushi if block_given?
