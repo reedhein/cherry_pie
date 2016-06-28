@@ -5,10 +5,6 @@ require_relative './lib/note_migration_manager'
 require_relative './lib/attachment_migration_tool'
 require_relative './lib/bring_forward_zoho'
 require_relative '../global_utils/global_utils'
-# RubyZoho::Crm::Contact.include Inspector
-# RubyZoho::Crm::Contact.send :inspector, :id
-# RubyZoho::Crm::Potential.include Inspector
-# RubyZoho::Crm::Potential.send :inspector, :id, :account_name, :description
 ActiveSupport::TimeZone[-8]
 RubyZoho::Crm::Lead.include Inspector
 RubyZoho::Crm::Lead.send :inspector, :id
