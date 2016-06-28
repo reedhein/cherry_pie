@@ -31,7 +31,7 @@ class CherryPie
   end
 
   def process_work_queue(tools = nil)
-    process_tools = tools || [NotesManager]
+    process_tools = tools || [NoteMigrationManager]
     begin
       @total = 0
       while @do_work == true do
