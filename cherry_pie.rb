@@ -1,6 +1,7 @@
 require 'pry'
 require 'active_support/time'
 require_relative './lib/contact_note_to_case'
+require_relative './lib/note_migration_manager'
 require_relative './lib/attachment_migration_tool'
 require_relative './lib/bring_forward_zoho'
 require_relative '../global_utils/global_utils'
