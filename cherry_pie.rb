@@ -24,7 +24,7 @@ class CherryPie
     @offset_date      = @meta.offset_date
   end
 
-  def process_work_queue(tools = [NoteMigrationManager])
+  def process_work_queue(process_tools = [NoteMigrationManager])
     begin
       @total = 0
       while @do_work == true do
