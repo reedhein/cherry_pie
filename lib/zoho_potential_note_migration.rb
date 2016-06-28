@@ -7,7 +7,7 @@ class ZohoPotentialNoteMigration
 
   def perform
     @potential = @sf.find_zoho
-    return if @potential.is_a?(Utils::SalesForce::Determine) || @potential.is_a?(VirtualProxy)
+    return if @potential.is_a? Utils::SalesForce::Determine
     @case      = @sf.cases.first
     @chatters  = @sf.chatters
     @contact   = @potential.contacts.first

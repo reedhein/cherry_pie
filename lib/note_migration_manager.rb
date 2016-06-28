@@ -6,6 +6,7 @@ class NoteMigrationManager
   end
 
   def peform
+    binding.pry
     case @sf
     when Utils::SalesForce::Opportunity
       process_opportunities
@@ -15,7 +16,7 @@ class NoteMigrationManager
   end
 
   def process_opportunities
-    OpportunityNotesToCase.new(@sf, @meta).perform #populates @sf.cases
+    ZohoPotentialNoteMigration.new(@sf, @meta).perform #populates @sf.cases as side effect
     @sf.cases.each do |sf_case|
       ZohoContactNoteMigration.new(sf_case, @meta).perform
     end
