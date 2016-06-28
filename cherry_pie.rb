@@ -16,38 +16,32 @@ RubyZoho::Crm::Account.send :inspector, :id
 DB::SalesForceProgressRecord.include Inspector
 class CherryPie
   attr_reader :sf_client
-  def initialize(limit: 2000, project: :migration, id: nil, environment: 'production')
-    @id           = id
-    @environment  = environment
-    $environment  = environment
+  def initialize(limit: 2000, project: 'ultra_migration', id: nil, environment: 'production')
+    @id                    = id
+    @environment           = environment
+    $environment           = environment #global set environment
     Utils::Box.environment = environment
-    # @limit        = limit
-    @offset_date  = nil
-    @sf_client    = Utils::SalesForce::Client.instance
-    @box_client    = Utils::Box::Client.instance
-    @do_work      = true
-    @fields       = get_opportunity_fields
-    @meta         = DB::Meta.first_or_create(project: project)
+    @sf_client             = Utils::SalesForce::Client.instance
+    @box_client            = Utils::Box::Client.instance
+    @do_work               = true
+    @fields                = get_opportunity_fields
+    @meta                  = DB::Meta.first_or_create(project: project)
+    @offset_date           = @meta.offset_date
   end
 
-  def process_work_queue(tools = nil)
-    process_tools = tools || [NoteMigrationManager]
+  def process_work_queue(tools = [NoteMigrationManager])
     begin
       @total = 0
       while @do_work == true do
         @do_work = false
         @processed = 0
         get_sales_force_work_queue do |sf|
-          if sf.notes_migration_complete?
-            puts sf.id
-            puts "already processed"
-          else
-            process_tools.each do |tool|
-              tool.new(sf, @meta).perform
-            end
-            # sf.mark_all_completed
-            @meta.updated_count += 1
+          @offset_date = sf.created_date # creates a marker for next query
+          process_tools.each do |tool|
+            binding.pry
+            tool.new(sf, @meta).perform
           end
+          @meta.updated_count += 1
           @processed += 1
           puts "Processed: #{@processed}"
           @total     += 1
@@ -64,6 +58,8 @@ class CherryPie
       end
     rescue => e
       binding.pry
+    ensure
+      @meta.update(offset_date: @offset_date)
     end
   end
 
@@ -98,6 +94,8 @@ class CherryPie
     rescue => e
       puts e
       binding.pry
+    ensure 
+      @meta.update(offset_date: @offset_date)
     end
   end
 
@@ -119,29 +117,21 @@ class CherryPie
   end
 
   def get_sales_force_work_queue(&block)
-    time = DB::SalesForceProgressRecord.first(notes_migration_complete: false).try(:created_date).try(:to_s)
-    @offset_date ||= Utils::SalesForce.format_time_to_soql(time) if time
+    @offset_date ||= @meta.offset_date
     get_unfinished_objects do |record|
-      if block_given?
-        yield record
-      else
-        record
-      end
+      yield record if block_given?
     end
   end
 
-  def get_unfinished_objects(override_query, &block)
+  def get_unfinished_objects(&block)
     if @id
       query = "SELECT #{@fields} FROM Opportunity WHERE id = '#{@id}'"
-    elsif @offset_date && !@offset_date.empty?
-      query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c LIKE 'zcrm%' AND CreatedDate <= #{@offset_date} ORDER BY CreatedDate DESC"
+    elsif @offset_date
+      query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c LIKE 'zcrm%' AND CreatedDate < #{@offset_date} ORDER BY CreatedDate DESC"
     else
       query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c LIKE 'zcrm%'  ORDER BY CreatedDate DESC"
     end
-    query << " WHERE NOT in #{@finished_ids}" if @finished_ids
     query << " LIMIT #{@limit}"               if @limit
-    query << " OFFSET #{@offset}"             if @offset
-    query = override_query if override_query
     @sf_client.custom_query(query: query) do |sushi|
       yield sushi if block_given?
     end
@@ -190,7 +180,7 @@ end
 binding.pry
 #hold_process until past_midnight?
 
-# CherryPie.new().process_work_queue()
-CherryPie.new().exit_complete()
+CherryPie.new().process_work_queue()
+# CherryPie.new().exit_complete()
 puts 'fun times!'
 
