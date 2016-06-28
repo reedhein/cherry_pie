@@ -17,16 +17,14 @@ DB::SalesForceProgressRecord.include Inspector
 class CherryPie
   attr_reader :sf_client
   def initialize(limit: 2000, project: 'ultra_migration', id: nil, environment: 'production')
-    @id                    = id
-    @environment           = environment
-    $environment           = environment #global set environment
-    Utils::Box.environment = environment
-    @sf_client             = Utils::SalesForce::Client.instance
-    @box_client            = Utils::Box::Client.instance
-    @do_work               = true
-    @fields                = get_opportunity_fields
-    @meta                  = DB::Meta.first_or_create(project: project)
-    @offset_date           = @meta.offset_date
+    @id               = id
+    Utils.environment = @environment = environment
+    @sf_client        = Utils::SalesForce::Client.instance
+    @box_client       = Utils::Box::Client.instance
+    @do_work          = true
+    @fields           = get_opportunity_fields
+    @meta             = DB::Meta.first_or_create(project: project)
+    @offset_date      = @meta.offset_date
   end
 
   def process_work_queue(tools = [NoteMigrationManager])
