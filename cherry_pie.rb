@@ -1,9 +1,6 @@
 require 'pry'
 require 'active_support/time'
-require_relative './lib/contact_note_to_case'
-require_relative './lib/note_migration_manager'
-require_relative './lib/attachment_migration_tool'
-require_relative './lib/bring_forward_zoho'
+require_relative './lib/tools'
 require_relative '../global_utils/global_utils'
 ActiveSupport::TimeZone[-8]
 RubyZoho::Crm::Lead.include Inspector
@@ -13,27 +10,28 @@ RubyZoho::Crm::Account.send :inspector, :id
 DB::SalesForceProgressRecord.include Inspector
 class CherryPie
   attr_reader :sf_client
-  def initialize(limit: 2000, project: 'ultra_migration', id: nil, environment: 'production')
+  def initialize(limit: nil, project: 'ultra_migration', id: nil, environment: 'production', offset: 0)
     @id               = id
+    @limit            = limit
+    @offset           = offset
     Utils.environment = @environment = environment
     @sf_client        = Utils::SalesForce::Client.instance
     @box_client       = Utils::Box::Client.instance
     @do_work          = true
     @fields           = get_opportunity_fields
     @meta             = DB::Meta.first_or_create(project: project)
-    @offset_date      = @meta.offset_date
+    @offset_date      = nil #@meta.offset_date
   end
 
-  def process_work_queue(process_tools = [NoteMigrationManager])
+  def process_work_queue(work_queue: :get_unfinished_objects, process_tools: [NoteMigrationManager])
     begin
       @total = 0
       while @do_work == true do
         @do_work = false
         @processed = 0
-        get_sales_force_work_queue do |sf|
+        self.public_send(work_queue) do |sf|
           @offset_date = sf.created_date # creates a marker for next query
           process_tools.each do |tool|
-            binding.pry
             tool.new(sf, @meta).perform
           end
           @meta.updated_count += 1
@@ -43,6 +41,7 @@ class CherryPie
           puts "Total: #{@total}"
           @do_work    = true
         end
+        binding.pry if @do_work == false
       end
     rescue Net::OpenTimeout, SocketError, Errno::ETIMEDOUT, Faraday::ConnectionFailed
       sleep 5
@@ -54,7 +53,8 @@ class CherryPie
     rescue => e
       binding.pry
     ensure
-      @meta.update(offset_date: @offset_date)
+      @meta.offset_date = @offset_date
+      @meta.save
     end
   end
 
@@ -94,30 +94,6 @@ class CherryPie
     end
   end
 
-
-  private
-
-  def populate_csv(sf, csv)
-    value_array = []
-    value_array << Nokogiri::HTML(sf.body).text.squish.encode('ISO-8859-1', invalid: :replace, undef: :replace, replace: '?')
-    value_array << sf.created_date
-    value_array << sf.case.case_id_18__c
-    value_array << sf.case.status
-    value_array << sf.case.is_closed
-    value_array << sf.case.exit_completed_date__c
-    puts '*' * 88
-    puts value_array
-    puts '*' * 88
-    csv << value_array
-  end
-
-  def get_sales_force_work_queue(&block)
-    @offset_date ||= @meta.offset_date
-    get_unfinished_objects do |record|
-      yield record if block_given?
-    end
-  end
-
   def get_unfinished_objects(&block)
     if @id
       query = "SELECT #{@fields} FROM Opportunity WHERE id = '#{@id}'"
@@ -126,7 +102,7 @@ class CherryPie
     else
       query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c LIKE 'zcrm%'  ORDER BY CreatedDate DESC"
     end
-    query << " LIMIT #{@limit}"               if @limit
+    query << " LIMIT #{@limit}" if @limit
     @sf_client.custom_query(query: query) do |sushi|
       yield sushi if block_given?
     end
@@ -146,6 +122,24 @@ class CherryPie
     end
   end
 
+  def get_possible_zoho_dupes
+    if @id 
+      query = "SELECT #{@fields} FROM Opportunity WHERE = '#{@id}'"
+    elsif @offset_date
+      puts "#"*88
+      puts "offset date: #{@offset_date}"
+      puts "#"*88
+      query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c != Null AND (NOT Zoho_ID__c LIKE 'zcrm%')  AND CreatedDate > #{@offset_date} ORDER BY CreatedDate ASC"
+    else
+      query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c != Null AND (NOT Zoho_ID__c LIKE 'zcrm%') ORDER BY CreatedDate ASC"
+    end
+    query << " LIMIT #{@limit}" if @limit
+    query << " OFFSET #{@offset}" if @offset
+    @sf_client.custom_query(query: query) do |sushi|
+      yield sushi if block_given?
+    end
+  end
+
   def get_opportunity_fields
     Utils::SalesForce::Opportunity::FIELDS.map do |x|
       if x =~ /__/
@@ -158,6 +152,21 @@ class CherryPie
 end
 
 
+private
+
+def populate_csv(sf, csv)
+  value_array = []
+  value_array << Nokogiri::HTML(sf.body).text.squish.encode('ISO-8859-1', invalid: :replace, undef: :replace, replace: '?')
+  value_array << sf.created_date
+  value_array << sf.case.case_id_18__c
+  value_array << sf.case.status
+  value_array << sf.case.is_closed
+  value_array << sf.case.exit_completed_date__c
+  puts '*' * 88
+  puts value_array
+  puts '*' * 88
+  csv << value_array
+end
 @today = Date.today.day
 @tomorrow = Date.tomorrow.beginning_of_day
 # hold_process while work_hours?
@@ -178,7 +187,7 @@ end
 binding.pry
 #hold_process until past_midnight?
 
-CherryPie.new().process_work_queue()
+CherryPie.new().process_work_queue(work_queue: :get_possible_zoho_dupes, process_tools: [DupeAuditor])
 # CherryPie.new().exit_complete()
 puts 'fun times!'
 
