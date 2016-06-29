@@ -5,8 +5,7 @@ class NoteMigrationManager
     @sf   = sf #written to be potentials
   end
 
-  def peform
-    binding.pry
+  def perform
     case @sf
     when Utils::SalesForce::Opportunity
       process_opportunities
