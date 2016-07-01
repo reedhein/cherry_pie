@@ -1,16 +1,29 @@
 class DupeAuditor
+  # used to figure out all the salesforce records that have a zoho_id__c populated
+  # but the data is not accurate.  some 16k records are affected by this
   def initialize(sf, meta)
     @sf = sf
     @meta = meta
   end
 
   def perform
-    find_result = @sf.find_zoho
-    if find_result.contacts.empty? && find_result.leads.empty? && find_result.potentials.empty? && find_result.accounts.empty?
-      puts '*'*88
-      puts "removing zoho reference for: #{@sf.id}"
-      puts '*'*88
+    if Utils::SalseForce::Determine.new(@sf).detect_zoho
+      in_depth_search
+    else
       @sf.update({zoho_id__c: nil})
     end
   end
+
+  def in_depth_search
+    Utils::SalseForce::Determine.new(@sf).find_zoho
+    zoho_results = [find_result.contacts, find_result.leads, find_result.potentials, find_result.accounts].flatten
+    if zoho_results.count == 1
+      binding.pry
+      @sf.update({zoho_id__c: zoho_results.first.id})
+    else
+      puts 'more than one association'
+      binding.pry
+    end
+  end
+
 end
