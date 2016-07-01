@@ -29,11 +29,14 @@ class CherryPie
       while @do_work == true do
         @do_work = false
         @processed = 0
+        @repeat_blocker = []
         self.public_send(work_queue) do |sf|
+          break if repeat?(sf)
           @offset_date = sf.created_date # creates a marker for next query
           process_tools.each do |tool|
             tool.new(sf, @meta).perform
           end
+          @previous_sf = sf
           @meta.updated_count += 1
           @processed += 1
           puts "Processed: #{@processed}"
@@ -53,10 +56,11 @@ class CherryPie
     rescue => e
       binding.pry
     ensure
-      @meta.offset_date = @offset_date
+      @meta.offset_date = @previous_sf.try(:created_date)||@offset_date
       @meta.save
     end
   end
+
 
   def exit_complete
     begin
@@ -124,12 +128,12 @@ class CherryPie
 
   def get_possible_zoho_dupes
     if @id 
-      query = "SELECT #{@fields} FROM Opportunity WHERE = '#{@id}'"
+      query = "SELECT #{@fields} FROM Opportunity WHERE id = '#{@id}'"
     elsif @offset_date
       puts "#"*88
       puts "offset date: #{@offset_date}"
       puts "#"*88
-      query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c != Null AND (NOT Zoho_ID__c LIKE 'zcrm%')  AND CreatedDate > #{@offset_date} ORDER BY CreatedDate ASC"
+      query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c != Null AND (NOT Zoho_ID__c LIKE 'zcrm%')  AND CreatedDate >= #{@offset_date} ORDER BY CreatedDate ASC"
     else
       query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c != Null AND (NOT Zoho_ID__c LIKE 'zcrm%') ORDER BY CreatedDate ASC"
     end
@@ -153,6 +157,16 @@ end
 
 
 private
+
+def repeat?(sf)
+  if @repeat_blocker.include? sf.id
+    @do_work = false
+    true
+  else
+    @repeat_blocker << sf.id
+    false
+  end
+end
 
 def populate_csv(sf, csv)
   value_array = []
@@ -188,6 +202,7 @@ binding.pry
 #hold_process until past_midnight?
 
 CherryPie.new(project: 'dup_auditor').process_work_queue(work_queue: :get_possible_zoho_dupes, process_tools: [DupeAuditor])
+# CherryPie.new(id: '00661000005R3M1AAK', project: 'dup_auditor').process_work_queue(work_queue: :get_possible_zoho_dupes, process_tools: [AttachmentMigrationTool])
 # CherryPie.new().exit_complete()
 puts 'fun times!'
 

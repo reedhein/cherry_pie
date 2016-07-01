@@ -1,34 +1,42 @@
-class ZohoContactNoteMigration
+class ZohoNoteMigration
   attr_reader :meta, :sf
   def initialize(sf, meta)
+    puts "2" * 88
+    puts "Processing notes for #{sf.type}: #{sf.id}"
+    puts "2" * 88
     @meta = meta
-    @sf   = sf #a salesforce Case object
+    @sf   = sf #written to be potentials
   end
 
   def perform
-    @contact = @sf.find_zoho
-    return if @contact.is_a?(Utils::SalesForce::Determine) || @contact.is_a?(VirtualProxy)
+    @zoho_equivilant = @sf.find_zoho
+    if @zoho_equivilant.nil?
+      DupeAuditor.new(@sf, @meta).perform 
+      return
+    end
     @chatters  = @sf.chatters
-    @contact   = @potential.contacts.first #where the notes live
-    puts @sf.id
-    uniq_notes.each_with_index do |note, i|
-      #stick potential notes onto opportunity
-      puts "#{i + 1} potential to opportunity"
+    puts "#{@sf.type} id: #{@sf.id}"
+
+    uniq_notes(@sf).each_with_index do |note, i|
+      puts "#{i + 1} #{note.module_name} to #{@sf.type}"
       Utils::SalesForce::FeedItem.create_from_zoho_note(note, @sf)
       note.mark_migration_complete(:note)
     end
     @sf.mark_migration_complete(:notes)
   end
 
-  private 
+  private
 
-  def uniq_notes
-    notes = @contact.try(:notes) || []
-    notes.delete_if do |n|
+  def uniq_notes(sf_object)
+    all_the_notes.delete_if do |n|
       n.note_migration_complete? ||
       n.note_content.empty? ||
       note_already_migrated?(n)
     end
+  end
+
+  def all_the_notes
+    @zoho_equivilant.try(:notes) || []
   end
 
   def note_already_migrated?(note)

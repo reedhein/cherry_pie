@@ -3,7 +3,7 @@ class BringForwardZoho
     @sf   = sf
     @meta = meta
     zoho = sf.find_zoho
-    if zoho.is_a?( GlobalUtilities::SalesForce::Determine || VirtualPoxy )
+    if zoho.nil?
       if sf.cases.empty? && zoho.opportunities.empty?
         create_a_case
         verified = verify_data_from_zoho_objects # large method

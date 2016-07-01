@@ -1,41 +1,30 @@
 class AttachmentMigrationTool
   def initialize(sf, meta)
+    puts "5" * 88
+    puts "Processing attachments for #{sf.type}: #{sf.id}"
+    puts "5" * 88
     @meta = meta
     @sf   = sf
   end
 
   def perform
-    if sf.zoho_id__c =~ /^zcrm_/
-      ZohoSalesForceAttachmentMigration.new(sf, meta).perform
-      SalesForceBoxAttachmentMigration.new(sf, meta).perform
+    if @sf.is_a? Utils::SalesForce::Opportunity
+      process_opportunities
     else
-      SalesForceBoxAttachmentMigration.new(sf, meta).perform
+      ZohoSalesForceAttachmentMigration.new(@sf, @meta).perform
     end
   end
-end
 
-class ZohoSalesForceAttachmentMigration
-  attr_accessor :meta
-  def initialize(sf, meta)
-    @meta        = meta
-    @sf          = sf
-    @zoho        = sf.find_zoho
-  end
+  private
 
-
-  def perform
-    return if @zoho.is_a? Utils::SalesForce::Determine
-    zoho_attachments = @zoho.attachments
-    sf_attachment_names   = @sf.attachments.entries.map{|attachment| attachment.fetch('Name')}
-    zoho_attachments.map do |za|
-      @sf.zoho_attach(@zoho, za) if sf_attachment_names.include? zoho_attachment[:file_name]
+  def process_opportunities
+    ZohoSalesForceAttachmentMigration.new(@sf, @meta).perform #populates @sf.cases as side effect
+    @sf.cases.each do |sf_case|
+      ZohoSalesForceAttachmentMigration.new(sf_case, @meta).perform
     end
-    if @sf.modified?
-      @meta.updated_count += 1
-      @meta.save
+    @sf.contacts do |sf_contact|
+      ZohoSalesForceAttachmentMigration.new(sf_contact, @meta).peform
     end
-    @zoho.mark_migration_complete(:attachment)
-    @sf.mark_migration_complete(:attachment)
   end
 end
 
