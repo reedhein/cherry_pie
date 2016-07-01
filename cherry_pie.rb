@@ -20,7 +20,7 @@ class CherryPie
     @do_work          = true
     @fields           = get_opportunity_fields
     @meta             = DB::Meta.first_or_create(project: project)
-    @offset_date      = nil #@meta.offset_date
+    @offset_date      = @meta.offset_date
   end
 
   def process_work_queue(work_queue: :get_unfinished_objects, process_tools: [NoteMigrationManager])
@@ -187,7 +187,7 @@ end
 binding.pry
 #hold_process until past_midnight?
 
-CherryPie.new().process_work_queue(work_queue: :get_possible_zoho_dupes, process_tools: [DupeAuditor])
+CherryPie.new(project: 'dup_auditor').process_work_queue(work_queue: :get_possible_zoho_dupes, process_tools: [DupeAuditor])
 # CherryPie.new().exit_complete()
 puts 'fun times!'
 
