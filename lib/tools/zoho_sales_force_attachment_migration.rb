@@ -16,7 +16,7 @@ class ZohoSalesForceAttachmentMigration
     zoho_attachments = @zoho_equivilant.attachments
     sf_attachment_names   = @sf.attachments.entries.map{|attachment| attachment.name}
     zoho_attachments.map do |za|
-      @sf.zoho_attach(@zoho_equivilant, za) if !sf_attachment_names.include? zoho_attachment[:file_name]
+      @sf.zoho_attach(@zoho_equivilant, za) if !sf_attachment_names.include? za.file_name
     end
     if @sf.modified?
       @meta.updated_count += 1

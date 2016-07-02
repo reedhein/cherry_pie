@@ -10,12 +10,11 @@ class DupeAuditor
   end
 
   def perform
-    find_result = @sf.find_zoho
-    if find_result.nil?
+    find_result = @sf.find_zoho unless @sf.zoho_id__c =~ /^zcrm_/
+    if find_result.nil? && @sf.zoho_id__c != nil
       in_depth_search
     else
-      binding.pry
-      @sf.update({zoho_id__c: nil})
+      @sf.update({zoho_id__c: nil}) unless @sf.zoho_id__c.nil?
     end
   end
 
@@ -27,9 +26,10 @@ class DupeAuditor
       NoteMigrationManager.new(@sf, @meta).perform
       AttachmentMigrationTool.new(@sf, @meta).perform
       @sf.update({zoho_id__c: "zcrm_#{zoho_results.first.id}"})
+    elsif zoho_results.count == 0
+      puts "can't find this record in zoho"
     else
       puts 'more than one association'
-      binding.pry
     end
   end
 
