@@ -21,7 +21,7 @@ class DupeAuditor
   def in_depth_search
     find_result = Utils::SalesForce::Determine.new(@sf).find_zoho
     zoho_results = [find_result.contacts, find_result.leads, find_result.potentials, find_result.accounts].flatten
-    if zoho_results.count == 1
+    if zoho_results.count == 1 #currently only returning the first positive hit, this will always be true
       @sf.zoho_id__c = "zcrm_#{zoho_results.first.id}"
       NoteMigrationManager.new(@sf, @meta).perform
       AttachmentMigrationTool.new(@sf, @meta).perform

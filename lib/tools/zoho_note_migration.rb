@@ -11,7 +11,7 @@ class ZohoNoteMigration
   def perform
     @zoho_equivilant = @sf.find_zoho
     if @zoho_equivilant.nil?
-      DupeAuditor.new(@sf, @meta).perform 
+      DupeAuditor.new(@sf, @meta).perform
       return
     end
     @chatters  = @sf.chatters
