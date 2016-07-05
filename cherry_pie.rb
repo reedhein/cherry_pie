@@ -1,4 +1,5 @@
 require 'pry'
+require 'awesome_print'
 require 'active_support/time'
 require_relative './lib/tools'
 require_relative '../global_utils/global_utils'
@@ -9,8 +10,10 @@ RubyZoho::Crm::Account.include Inspector
 RubyZoho::Crm::Account.send :inspector, :id
 DB::SalesForceProgressRecord.include Inspector
 class CherryPie
+  include Utils
   attr_reader :sf_client
   def initialize(limit: nil, project: 'ultra_migration', id: nil, environment: 'production', offset: 0)
+    # hold_process until past_midnight?
     @id               = id
     @limit            = limit
     @offset           = offset
@@ -32,31 +35,37 @@ class CherryPie
         @repeat_blocker = []
         self.public_send(work_queue) do |sf|
           break if repeat?(sf)
-          @offset_date = sf.created_date # creates a marker for next query
           process_tools.each do |tool|
             tool.new(sf, @meta).perform
           end
-          @previous_sf = sf
+          @offset_date = sf.created_date # creates a marker for next query
           @meta.updated_count += 1
           @processed += 1
-          puts "Processed: #{@processed}"
           @total     += 1
+          puts "^"*88
+          puts "Processed: #{@processed}"
           puts "Total: #{@total}"
+          puts "^"*88
           @do_work    = true
         end
         binding.pry if @do_work == false
       end
-    rescue Net::OpenTimeout, SocketError, Errno::ETIMEDOUT, Faraday::ConnectionFailed
+    rescue Net::OpenTimeout, SocketError, Errno::ETIMEDOUT, Faraday::ConnectionFailed => e
+      puts "error " * 10
+      puts e.to_s
+      puts "error " * 10
       sleep 5
       retry
     rescue RuntimeError => e
-      if e =~ /4820/
-        binding.pry
+      if e.to_s =~ /4820/
+        hold_process until past_midnight? || two_hour_interlude?
+        retry
       end
     rescue => e
+      puts e.backtrace
       binding.pry
     ensure
-      @meta.offset_date = @previous_sf.try(:created_date)||@offset_date
+      @meta.offset_date = @offset_date
       @meta.save
     end
   end
@@ -80,9 +89,11 @@ class CherryPie
             binding.pry if map.include? sf.id
             map << sf.id
             @processed += 1
-            puts "Processed: #{@processed}"
             @total     += 1
+            puts "^"*88
+            puts "Processed: #{@processed}"
             puts "Total: #{@total}"
+            puts "^"*88
             @do_work    = true
           end
         end
@@ -91,7 +102,7 @@ class CherryPie
       sleep 5
       retry
     rescue => e
-      puts e
+      ap e
       binding.pry
     ensure 
       @meta.update(offset_date: @offset_date)
@@ -133,12 +144,23 @@ class CherryPie
       puts "#"*88
       puts "offset date: #{@offset_date}"
       puts "#"*88
-      query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c != Null AND (NOT Zoho_ID__c LIKE 'zcrm%')  AND CreatedDate >= #{@offset_date} ORDER BY CreatedDate ASC"
+      query = 
+        <<-EOF
+          SELECT #{@fields},
+          (SELECT id, createddate, body, title from notes),
+          (SELECT Id, Name FROM Attachments),
+          (SELECT id, createddate, CreatedById, type, body, title FROM feeds)
+          FROM Opportunity
+          WHERE Zoho_ID__c != Null
+          AND (NOT Zoho_ID__c LIKE 'zcrm_%')
+          AND CreatedDate > #{@offset_date}
+          ORDER BY CreatedDate ASC
+        EOF
     else
-      query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c != Null AND (NOT Zoho_ID__c LIKE 'zcrm%') ORDER BY CreatedDate ASC"
+      query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c != Null AND (NOT Zoho_ID__c LIKE 'zcrm_%') ORDER BY CreatedDate ASC"
     end
     query << " LIMIT #{@limit}" if @limit
-    query << " OFFSET #{@offset}" if @offset
+    # query << " OFFSET #{@offset}" if @offset
     @sf_client.custom_query(query: query) do |sushi|
       yield sushi if block_given?
     end
@@ -160,6 +182,9 @@ private
 
 def repeat?(sf)
   if @repeat_blocker.include? sf.id
+    puts "%"*88
+    puts "found a duplicate workload id: #{sf.id}"
+    puts "%"*88
     @do_work = false
     true
   else
@@ -181,27 +206,7 @@ def populate_csv(sf, csv)
   puts '*' * 88
   csv << value_array
 end
-@today = Date.today.day
-@tomorrow = Date.tomorrow.beginning_of_day
-# hold_process while work_hours?
-def past_midnight?
-  Time.now.to_i > @tomorrow.to_i
-end
-
-def work_hours?
-    puts "work hours = #{17 < Time.now.hour && Time.now.hour > 9}"
-    17 < Time.now.hour && Time.now.hour > 9
-end
-
-def hold_process
-  seconds_left = @tomorrow.to_i - Time.now.to_i
-  puts "#{seconds_left} seconds until zoho api limits reset"
-  sleep 60
-end
-binding.pry
-#hold_process until past_midnight?
-
-CherryPie.new(project: 'dup_auditor').process_work_queue(work_queue: :get_possible_zoho_dupes, process_tools: [DupeAuditor])
+CherryPie.new(project: 'dup_auditor', limit: 200).process_work_queue(work_queue: :get_possible_zoho_dupes, process_tools: [DupeAuditor])
 # CherryPie.new(id: '00661000005R3M1AAK', project: 'dup_auditor').process_work_queue(work_queue: :get_possible_zoho_dupes, process_tools: [AttachmentMigrationTool])
 # CherryPie.new().exit_complete()
 puts 'fun times!'
