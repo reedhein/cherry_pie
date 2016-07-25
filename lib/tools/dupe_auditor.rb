@@ -10,7 +10,7 @@ class DupeAuditor
   end
 
   def perform
-    find_result = @sf.find_zoho unless @sf.zoho_id__c =~ /^zcrm_/
+    find_result = @sf.find_zoho #unless @sf.zoho_id__c =~ /^zcrm_/
     if find_result.nil? && @sf.zoho_id__c != nil
       in_depth_search
     else
@@ -29,6 +29,7 @@ class DupeAuditor
     elsif zoho_results.count == 0
       puts "can't find this record in zoho"
     else
+      binding.pry
       puts 'more than one association'
     end
   end

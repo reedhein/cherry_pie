@@ -18,22 +18,24 @@ class CherryPie
     @limit            = limit
     @offset           = offset
     Utils.environment = @environment = environment
+    Utils.limiter     = 0.1
     @sf_client        = Utils::SalesForce::Client.instance
     @box_client       = Utils::Box::Client.instance
     @do_work          = true
-    @fields           = get_opportunity_fields
+    @fields           = get_fields('Case')
     @meta             = DB::Meta.first_or_create(project: project)
     @offset_date      = @meta.offset_date
   end
 
-  def process_work_queue(work_queue: :get_unfinished_objects, process_tools: [NoteMigrationManager])
+  def process_work_queue(work_queue: :get_unfinished_objects, process_tools: [ZohoNoteMigration, AttachmentMigrationManager])
     begin
       @total = 0
       while @do_work == true do
         @do_work = false
         @processed = 0
         @repeat_blocker = []
-        self.public_send(work_queue) do |sf|
+
+        self.send(work_queue) do |sf|
           break if repeat?(sf)
           process_tools.each do |tool|
             tool.new(sf, @meta).perform
@@ -48,8 +50,8 @@ class CherryPie
           puts "^"*88
           @do_work    = true
         end
-        binding.pry if @do_work == false
       end
+
     rescue Net::OpenTimeout, SocketError, Errno::ETIMEDOUT, Faraday::ConnectionFailed => e
       puts "error " * 10
       puts e.to_s
@@ -70,6 +72,49 @@ class CherryPie
     end
   end
 
+  private
+
+  def get_fields(sf_object_name)
+    fields = ['Utils', 'SalesForce', sf_object_name, 'FIELDS'].join('::').constantize
+    convert_fields(fields)
+  end
+
+  def convert_fields(fields)
+    fields.map do |x|
+      if x =~ /__/
+        x
+      else
+        x.camelize
+      end
+    end.join(', ')
+  end
+
+  def repeat?(sf)
+    if @repeat_blocker.include? sf.id
+      puts "%"*88
+      puts "found a duplicate workload id: #{sf.id}"
+      puts "%"*88
+      @do_work = false
+      true
+    else
+      @repeat_blocker << sf.id
+      false
+    end
+  end
+
+  def populate_csv(sf, csv)
+    value_array = []
+    value_array << Nokogiri::HTML(sf.body).text.squish.encode('ISO-8859-1', invalid: :replace, undef: :replace, replace: '?')
+    value_array << sf.created_date
+    value_array << sf.case.case_id_18__c
+    value_array << sf.case.status
+    value_array << sf.case.is_closed
+    value_array << sf.case.exit_completed_date__c
+    puts '*' * 88
+    puts value_array
+    puts '*' * 88
+    csv << value_array
+  end
 
   def exit_complete
     begin
@@ -123,6 +168,37 @@ class CherryPie
     end
   end
 
+  def get_unfinished_case_objects(&block)
+    if @id
+      query = "SELECT #{@fields} FROM Opportunity WHERE id = '#{@id}'"
+    elsif @offset_date
+      query = 
+        <<-EOF
+          SELECT #{@fields},
+          (SELECT Id, Name FROM Attachments),
+          (SELECT id, createddate, CreatedById, type, body, title FROM feeds)
+          FROM Case
+          WHERE Zoho_ID__c LIKE 'zcrm_%'
+          ORDER BY CreatedDate ASC
+        EOF
+    else
+      query =
+        <<-EOF
+          SELECT #{@fields},
+          (SELECT Id, Name FROM Attachments),
+          (SELECT id, createddate, CreatedById, type, body, title FROM feeds)
+          FROM Case
+          WHERE Zoho_ID__c LIKE 'zcrm_%'
+          ORDER BY CreatedDate ASC
+        EOF
+    end
+    query << " LIMIT #{@limit}" if @limit
+    @sf_client.custom_query(query: query) do |sushi|
+      yield sushi if block_given?
+    end
+
+  end
+
   def get_unfinished_exit_objects(&block)
     if @offset_date
       puts "&"*88
@@ -166,47 +242,10 @@ class CherryPie
     end
   end
 
-  def get_opportunity_fields
-    Utils::SalesForce::Opportunity::FIELDS.map do |x|
-      if x =~ /__/
-        x
-      else
-        x.camelize
-      end
-    end.join(', ')
-  end
 end
 
 
-private
-
-def repeat?(sf)
-  if @repeat_blocker.include? sf.id
-    puts "%"*88
-    puts "found a duplicate workload id: #{sf.id}"
-    puts "%"*88
-    @do_work = false
-    true
-  else
-    @repeat_blocker << sf.id
-    false
-  end
-end
-
-def populate_csv(sf, csv)
-  value_array = []
-  value_array << Nokogiri::HTML(sf.body).text.squish.encode('ISO-8859-1', invalid: :replace, undef: :replace, replace: '?')
-  value_array << sf.created_date
-  value_array << sf.case.case_id_18__c
-  value_array << sf.case.status
-  value_array << sf.case.is_closed
-  value_array << sf.case.exit_completed_date__c
-  puts '*' * 88
-  puts value_array
-  puts '*' * 88
-  csv << value_array
-end
-CherryPie.new(project: 'dup_auditor', limit: 200).process_work_queue(work_queue: :get_possible_zoho_dupes, process_tools: [DupeAuditor])
+CherryPie.new(project: 'cas_dup_auditor', limit: 20 ).process_work_queue(work_queue: :get_unfinished_case_objects, process_tools: [ZohoNoteMigration, ZohoSalesForceAttachmentMigration]) 
 # CherryPie.new(id: '00661000005R3M1AAK', project: 'dup_auditor').process_work_queue(work_queue: :get_possible_zoho_dupes, process_tools: [AttachmentMigrationTool])
 # CherryPie.new().exit_complete()
 puts 'fun times!'
