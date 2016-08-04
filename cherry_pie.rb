@@ -18,7 +18,7 @@ class CherryPie
     @limit            = limit
     @offset           = offset
     Utils.environment = @environment = environment
-    Utils.limiter     = 0.1
+    Utils.limiter     = 0.01
     @sf_client        = Utils::SalesForce::Client.instance
     @box_client       = Utils::Box::Client.instance
     @do_work          = true
@@ -245,7 +245,7 @@ class CherryPie
 end
 
 
-CherryPie.new(project: 'cas_dup_auditor', limit: 20 ).process_work_queue(work_queue: :get_unfinished_case_objects, process_tools: [ZohoNoteMigration, ZohoSalesForceAttachmentMigration]) 
+CherryPie.new(project: 'cas_dup_auditor', limit: 5 ).process_work_queue(work_queue: :get_unfinished_case_objects, process_tools: [ZohoNoteMigration, ZohoSalesForceAttachmentMigration])
 # CherryPie.new(id: '00661000005R3M1AAK', project: 'dup_auditor').process_work_queue(work_queue: :get_possible_zoho_dupes, process_tools: [AttachmentMigrationTool])
 # CherryPie.new().exit_complete()
 puts 'fun times!'
