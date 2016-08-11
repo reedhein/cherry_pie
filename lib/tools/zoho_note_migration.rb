@@ -29,8 +29,9 @@ class ZohoNoteMigration
 
   def uniq_notes(sf_object)
     all_the_notes.delete_if do |n|
+      puts "testing note: #{n.note_content}"
       n.note_migration_complete? ||
-      n.note_content.empty? ||
+      (n.note_content.empty? && n.title.empty?) ||
       note_already_migrated?(n)
     end
   end
@@ -43,7 +44,7 @@ class ZohoNoteMigration
     @chatters.detect do |c|
       note1 = note.note_content.squish
       note2 = Nokogiri::HTML(c.body).text.gsub('::FROM ZOHO::', '').gsub(/AUTHORED BY \(.+\)/, '').squish
-      note1 == note2
+      note1 == note2 && Date.parse(note.created_time) == Date.parse(c.created_date)
     end
   end
 end

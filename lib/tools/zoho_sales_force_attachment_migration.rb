@@ -8,15 +8,16 @@ class ZohoSalesForceAttachmentMigration
 
 
   def perform
-    # @zoho_equivilant = @sf.find_zoho
-    # if @zoho_equivilant.nil?
-    #   DupeAuditor.new(@sf, @meta).perform
-    #   return
-    # end
+    if @zoho.nil?
+      DupeAuditor.new(@sf, @meta).perform
+      return
+    end
     sf_attachments      = @sf.attachments || []
     zoho_attachments    = @zoho.attachments
-    sf_attachment_names = sf_attachments.map{|attachment| attachment.name}
-    zoho_attachments.map do |za|
+    sf_attachment_names = sf_attachments.map{|attachment| attachment.name }
+    binding.pry if sf.id == "50061000001ly3IAAQ"
+    zoho_attachments.each do |za|
+      puts "looking for: #{za.file_name}"
       @sf.zoho_attach(@zoho, za) if !sf_attachment_names.include? za.file_name
     end
     if @sf.modified?

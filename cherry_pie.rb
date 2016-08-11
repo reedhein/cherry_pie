@@ -18,13 +18,13 @@ class CherryPie
     @limit            = limit
     @offset           = offset
     Utils.environment = @environment = environment
-    Utils.limiter     = 0.01
+    Utils.limiter     = 0.06
     @sf_client        = Utils::SalesForce::Client.instance
     @box_client       = Utils::Box::Client.instance
     @do_work          = true
     @fields           = get_fields('Case')
     @meta             = DB::Meta.first_or_create(project: project)
-    @offset_date      = @meta.offset_date
+    @offset_date      = Utils::SalesForce.format_time_to_soql(@meta.offset_date)
   end
 
   def process_work_queue(work_queue: :get_unfinished_objects, process_tools: [ZohoNoteMigration, AttachmentMigrationManager])
@@ -41,6 +41,8 @@ class CherryPie
             tool.new(sf, @meta).perform
           end
           @offset_date = sf.created_date # creates a marker for next query
+          @meta.offset_date = @offset_date
+          @meta.save
           @meta.updated_count += 1
           @processed += 1
           @total     += 1
@@ -56,7 +58,7 @@ class CherryPie
       puts "error " * 10
       puts e.to_s
       puts "error " * 10
-      sleep 5
+      sleep 3
       retry
     rescue RuntimeError => e
       if e.to_s =~ /4820/
@@ -175,17 +177,18 @@ class CherryPie
       query = 
         <<-EOF
           SELECT #{@fields},
-          (SELECT Id, Name FROM Attachments),
+          (SELECT Id, createdById, Name, Description FROM Attachments),
           (SELECT id, createddate, CreatedById, type, body, title FROM feeds)
           FROM Case
           WHERE Zoho_ID__c LIKE 'zcrm_%'
+          AND CreatedDate > #{@offset_date}
           ORDER BY CreatedDate ASC
         EOF
     else
       query =
         <<-EOF
           SELECT #{@fields},
-          (SELECT Id, Name FROM Attachments),
+          (SELECT Id, createdById, Name, Description FROM Attachments),
           (SELECT id, createddate, CreatedById, type, body, title FROM feeds)
           FROM Case
           WHERE Zoho_ID__c LIKE 'zcrm_%'
@@ -224,7 +227,7 @@ class CherryPie
         <<-EOF
           SELECT #{@fields},
           (SELECT id, createddate, body, title from notes),
-          (SELECT Id, Name FROM Attachments),
+          (SELECT Id, createdById, Name, Size, Description FROM Attachments),
           (SELECT id, createddate, CreatedById, type, body, title FROM feeds)
           FROM Opportunity
           WHERE Zoho_ID__c != Null
@@ -245,7 +248,7 @@ class CherryPie
 end
 
 
-CherryPie.new(project: 'cas_dup_auditor', limit: 5 ).process_work_queue(work_queue: :get_unfinished_case_objects, process_tools: [ZohoNoteMigration, ZohoSalesForceAttachmentMigration])
+CherryPie.new(project: 'cas_dup_auditor', limit: 5 ).process_work_queue(work_queue: :get_unfinished_case_objects, process_tools: [ZohoSalesForceAttachmentMigration]) 
 # CherryPie.new(id: '00661000005R3M1AAK', project: 'dup_auditor').process_work_queue(work_queue: :get_possible_zoho_dupes, process_tools: [AttachmentMigrationTool])
 # CherryPie.new().exit_complete()
 puts 'fun times!'

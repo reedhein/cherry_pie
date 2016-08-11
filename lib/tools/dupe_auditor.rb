@@ -24,7 +24,7 @@ class DupeAuditor
     if zoho_results.count == 1 #currently only returning the first positive hit, this will always be true
       @sf.zoho_id__c = "zcrm_#{zoho_results.first.id}"
       NoteMigrationManager.new(@sf, @meta).perform
-      AttachmentMigrationTool.new(@sf, @meta).perform
+      ZohoSalesForceAttachmentMigration.new(@sf, @meta).perform
       @sf.update({zoho_id__c: "zcrm_#{zoho_results.first.id}"})
     elsif zoho_results.count == 0
       puts "can't find this record in zoho"
