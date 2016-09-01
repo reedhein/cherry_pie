@@ -14,7 +14,8 @@ class DupeAuditor
     if find_result.nil? && @sf.zoho_id__c != nil
       in_depth_search
     else
-      @sf.update({zoho_id__c: nil}) unless @sf.zoho_id__c.nil?
+      puts 'Sales order migration bullshit'
+      # @sf.update({zoho_id__c: nil}) unless @sf.zoho_id__c.nil?
     end
   end
 

@@ -14,6 +14,7 @@ class ZohoNoteMigration
       DupeAuditor.new(@sf, @meta).perform
       return
     end
+    return if @zoho_equivilant.migration_complete?(:note)
     @chatters  = @sf.chatters
     puts "#{@sf.type} id: #{@sf.id}"
 

@@ -9,9 +9,10 @@ class ZohoSalesForceAttachmentMigration
 
   def perform
     if @zoho.nil?
-      DupeAuditor.new(@sf, @meta).perform
+      # DupeAuditor.new(@sf, @meta).perform
       return
     end
+    return if @sf.migration_complete?(:attachment)
     sf_attachments      = @sf.attachments || []
     zoho_attachments    = @zoho.attachments
     sf_attachment_names = sf_attachments.map{|attachment| attachment.name }

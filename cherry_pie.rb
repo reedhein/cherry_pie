@@ -12,22 +12,22 @@ DB::SalesForceProgressRecord.include Inspector
 class CherryPie
   include Utils
   attr_reader :sf_client
-  def initialize(limit: nil, project: 'ultra_migration', id: nil, environment: 'production', offset: 0)
+  def initialize(limit: nil, id: nil, project: 'ultra_migration_followup', environment: 'production', offset: 0)
     # hold_process until past_midnight?
     @id               = id
     @limit            = limit
     @offset           = offset
     Utils.environment = @environment = environment
-    Utils.limiter     = 0.06
+    Utils.limiter     = 0.01
     @sf_client        = Utils::SalesForce::Client.instance
     @box_client       = Utils::Box::Client.instance
     @do_work          = true
     @fields           = get_fields('Case')
     @meta             = DB::Meta.first_or_create(project: project)
-    @offset_date      = Utils::SalesForce.format_time_to_soql(@meta.offset_date)
+    @offset_date      = Utils::SalesForce.format_time_to_soql(@meta.offset_date || (Date.today - 3.years))
   end
 
-  def process_work_queue(work_queue: :get_unfinished_objects, process_tools: [ZohoNoteMigration, AttachmentMigrationManager])
+  def process_work_queue(work_queue: :get_unfinished_objects, process_tools: [ZohoNoteMigration, AttachmentMigrationTool])
     begin
       @total = 0
       while @do_work == true do
@@ -207,7 +207,14 @@ class CherryPie
       puts "&"*88
       puts @offset_date
       puts "&"*88
-      query= "select id, title, createddate, body, parentid from feeditem where type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost') and parentid in (select id from case) AND CreatedDate > #{@offset_date} ORDER BY CreatedDate ASC LIMIT 3000"
+      query= <<-EOF
+              SELECT id, title, createddate, body, parentid
+              FROM feeditem
+              WHERE type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost')
+              AND parentid in (select id from case)
+              AND CreatedDate > #{@offset_date}
+              ORDER BY CreatedDate ASC LIMIT 3000
+             EOF
     else
       query= "select id, title, createddate, body, parentid from feeditem where type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost') and parentid in (select id from case) ORDER BY CreatedDate ASC LIMIT 3000"
     end
@@ -248,7 +255,7 @@ class CherryPie
 end
 
 
-CherryPie.new(project: 'cas_dup_auditor', limit: 5 ).process_work_queue(work_queue: :get_unfinished_case_objects, process_tools: [ZohoSalesForceAttachmentMigration]) 
+CherryPie.new(project: 'cas_dup_auditor', limit: 5 ).process_work_queue(work_queue: :get_unfinished_case_objects)
 # CherryPie.new(id: '00661000005R3M1AAK', project: 'dup_auditor').process_work_queue(work_queue: :get_possible_zoho_dupes, process_tools: [AttachmentMigrationTool])
 # CherryPie.new().exit_complete()
 puts 'fun times!'
