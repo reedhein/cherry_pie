@@ -18,7 +18,7 @@ class CherryPie
     @limit            = limit
     @offset           = offset
     Utils.environment = @environment = environment
-    Utils.limiter     = 0.01
+    Utils.limiter     = 0.1
     @sf_client        = Utils::SalesForce::Client.instance
     @box_client       = Utils::Box::Client.instance
     @do_work          = true
@@ -172,7 +172,13 @@ class CherryPie
 
   def get_unfinished_case_objects(&block)
     if @id
-      query = "SELECT #{@fields} FROM Opportunity WHERE id = '#{@id}'"
+      query = <<-EOF
+        SELECT #{@fields},
+        (SELECT Id, createdById, Name, Description FROM Attachments),
+        (SELECT id, createddate, CreatedById, type, body, title FROM feeds)
+        FROM Case
+        WHERE id = '#{@id}'
+      EOF
     elsif @offset_date
       query = 
         <<-EOF
@@ -209,9 +215,9 @@ class CherryPie
       puts "&"*88
       query= <<-EOF
               SELECT id, title, createddate, body, parentid
-              FROM feeditem
-              WHERE type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost')
-              AND parentid in (select id from case)
+              FROM feeditem 
+              WHERE type in ('TextPost', 'LinkPost', 'ContentPost', 'CaseCommentPost', 'CallLogPost', 'AdvancedTextPost') 
+              AND parentid in (select id from case) 
               AND CreatedDate > #{@offset_date}
               ORDER BY CreatedDate ASC LIMIT 3000
              EOF
@@ -255,7 +261,7 @@ class CherryPie
 end
 
 
-CherryPie.new(project: 'cas_dup_auditor', limit: 5 ).process_work_queue(work_queue: :get_unfinished_case_objects)
+CherryPie.new(project: 'cas_dup_auditor', limit: 5, id: '50061000001lyOl' ).process_work_queue(work_queue: :get_unfinished_case_objects)
 # CherryPie.new(id: '00661000005R3M1AAK', project: 'dup_auditor').process_work_queue(work_queue: :get_possible_zoho_dupes, process_tools: [AttachmentMigrationTool])
 # CherryPie.new().exit_complete()
 puts 'fun times!'

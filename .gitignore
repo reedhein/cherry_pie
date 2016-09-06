@@ -1,1 +1,6 @@
 **/*.swp
+**/*.swo
+.ruby-gemset
+.ruby-version
+Gemfile
+Gemfile.lock
