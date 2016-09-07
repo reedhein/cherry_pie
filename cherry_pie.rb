@@ -205,7 +205,6 @@ class CherryPie
     @sf_client.custom_query(query: query) do |sushi|
       yield sushi if block_given?
     end
-
   end
 
   def get_unfinished_exit_objects(&block)
@@ -258,11 +257,22 @@ class CherryPie
     end
   end
 
+  def id_tagger(&block)
+    query = "SELECT #{@fields} FROM Opportunity ORDER BY CreatedDate ASC"
+    query << " LIMIT #{@limit}" if @limit
+    @sf_client.custom_query(query: query) do |sushi|
+      yield sushi if block_given?
+    end
+  end
+
+  private
+
+
 end
 
 
-CherryPie.new(project: 'cas_dup_auditor', limit: 5, id: '50061000001lyOl' ).process_work_queue(work_queue: :get_unfinished_case_objects)
-# CherryPie.new(id: '00661000005R3M1AAK', project: 'dup_auditor').process_work_queue(work_queue: :get_possible_zoho_dupes, process_tools: [AttachmentMigrationTool])
+# CherryPie.new(project: 'cas_dup_auditor', limit: 5, id: '50061000001lyOl' ).process_work_queue(work_queue: :get_unfinished_case_objects)
+CherryPie.new(id: '00661000005R3M1AAK', limit: 300, project: 'id_tagger').process_work_queue(work_queue: :id_tagger, process_tools: [IdTagger])
 # CherryPie.new().exit_complete()
 puts 'fun times!'
 
