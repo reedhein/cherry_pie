@@ -18,12 +18,13 @@ class CherryPie
     @limit            = limit
     @offset           = offset
     Utils.environment = @environment = environment
-    Utils.limiter     = 0.1
+    Utils.limiter     = 1
     @sf_client        = Utils::SalesForce::Client.instance
     @box_client       = Utils::Box::Client.instance
     @do_work          = true
     @fields           = get_fields('Case')
     @meta             = DB::Meta.first_or_create(project: project)
+    # @meta.offset_date = (Date.today - 3.years)
     @offset_date      = Utils::SalesForce.format_time_to_soql(@meta.offset_date || (Date.today - 3.years))
   end
 
@@ -41,6 +42,10 @@ class CherryPie
             tool.new(sf, @meta).perform
           end
           @offset_date = sf.created_date # creates a marker for next query
+          puts '*'*88
+          @meta.offset_date = @offset_date
+          puts '*'*88
+
           @meta.offset_date = @offset_date
           @meta.save
           @meta.updated_count += 1
@@ -258,7 +263,9 @@ class CherryPie
   end
 
   def id_tagger(&block)
-    query = "SELECT #{@fields} FROM Opportunity ORDER BY CreatedDate ASC"
+    query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c != Null AND (NOT Zoho_ID__c LIKE 'zcrm_%') ORDER BY CreatedDate ASC"
+          
+    query = "SELECT #{@fields} FROM Opportunity WHERE Zoho_ID__c != Null AND (NOT Zoho_ID__c LIKE 'zcrm_%') AND CreatedDate > #{@offset_date} ORDER BY CreatedDate ASC" if @offset_date
     query << " LIMIT #{@limit}" if @limit
     @sf_client.custom_query(query: query) do |sushi|
       yield sushi if block_given?
@@ -272,7 +279,7 @@ end
 
 
 # CherryPie.new(project: 'cas_dup_auditor', limit: 5, id: '50061000001lyOl' ).process_work_queue(work_queue: :get_unfinished_case_objects)
-CherryPie.new(id: '00661000005R3M1AAK', limit: 300, project: 'id_tagger').process_work_queue(work_queue: :id_tagger, process_tools: [IdTagger])
+CherryPie.new(limit: 200, project: 'extended_notes').process_work_queue(work_queue: :get_unfinished_case_objects, process_tools: [ZohoNoteMigration])
 # CherryPie.new().exit_complete()
 puts 'fun times!'
 
